@@ -21,3 +21,78 @@ class Net(nn.Module):
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
         return F.log_softmax(x)
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, k_size, out_ch, st, pad, pool=None, pool_k=None, pool_st=None):
+        super(ConvBlock, self).__init__()
+        self.pool = pool
+
+        self.c1 = nn.Conv2d(in_ch, out_ch, kernel_size=k_size, stride=st, padding=pad)
+        self.b1 = nn.BatchNorm2d(out_ch, affine=True)
+        self.a1 = nn.ELU(True)
+        if self.pool:
+            self.p1 = nn.MaxPool2d(pool_k, pool_st)
+        
+    def forward(self, x):
+        x = self.c1(x)
+        x = self.b1(x)
+        x = self.a1(x)
+        if self.pool:
+            x = self.p1(x)
+        return x
+
+class Net1(nn.Module):
+    def __init__(self):
+        super(Net1, self).__init__()
+        self.l1 = ConvBlock(3, 3, 32, 1, 1)
+        self.l2 = ConvBlock(32, 3, 32, 1, 1, 1, 2, 2)
+        self.l3 = ConvBlock(32, 3, 64, 1, 1)
+        self.l4 = ConvBlock(64, 3, 64, 1, 1, 1, 2, 2)
+        self.l5 = ConvBlock(64, 3, 64, 1, 1, 1, 2, 2)        
+        self.l6 = ConvBlock(64, 4, 512, 1, 0)
+        self.l7 = nn.Dropout2d(0.5)
+        self.l8 = ConvBlock(512, 1, 512, 1, 0)
+        self.l9 = nn.Dropout2d(0.5)
+        # Global avg pooling to be used instead of maxpool
+        self.l10 = nn.Conv2d(512, nclasses, 1, 1, 0)
+        self.l11 = nn.AvgPool2d(1, 1)
+        self.l12 = nn.BatchNorm2d(nclasses, affine=True)
+        
+
+    def forward(self, x):
+        x = self.l1(x)
+        #print(x.size())
+        x = self.l2(x)
+        #print(x.size())
+        x = self.l3(x)
+        #print(x.size())
+        x = self.l4(x) 
+        #print(x.size())                   
+        x = self.l5(x)
+        #print("=====>", x.size())            
+        x = self.l6(x)
+        #print(x.size())
+        x = self.l7(x)
+        #print(x.size())       
+        x = self.l8(x)
+        #print(x.size())
+        x = self.l9(x)
+        #print(x.size())
+        x = self.l10(x)
+        #print(x.size())
+        x = self.l11(x)
+        #print(x.size())
+        x = self.l12(x)
+        #print(x.size())        
+        return x
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        m.weight.data.normal_(0.0, 0.01)
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)

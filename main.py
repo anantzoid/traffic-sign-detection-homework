@@ -29,8 +29,11 @@ args = parser.parse_args()
 
 if not os.path.exists(args.outf):
     os.makedirs(args.outf)
-
 torch.manual_seed(args.seed)
+use_cuda = torch.cuda.is_available()
+if use_cuda:
+    torch.cuda.set_device(1)
+
 
 ### Data Initialization and Loading
 from data import initialize_data, data_transforms # data.py in the same folder
@@ -47,22 +50,29 @@ val_loader = torch.utils.data.DataLoader(
 
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
-from model import Net
+from model import *
 #model = Net()
-from model_preactnet import PreActResNet18
-model = PreActResNet18() 
-print(model)
+model = Net1()
+model.apple(weights_init)
 
+crit = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+if use_cuda:
+    model.cuda()
+    crit.cuda()
 
 def train(epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = Variable(data), Variable(target)
+        if use_cuda:
+            data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        output = output.view(args.batch_size, -1)
+        #loss = F.nll_loss(output, target)
+        loss = crit(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -76,6 +86,9 @@ def validation():
     correct = 0
     for data, target in val_loader:
         data, target = Variable(data, volatile=True), Variable(target)
+        if use_cuda:
+            data, target = data.cuda(), target.cuda()
+
         output = model(data)
         validation_loss += F.nll_loss(output, target, size_average=False).data[0] # sum up batch loss
         pred = output.data.max(1, keepdim=True)[1] # get the index of the max log-probability
