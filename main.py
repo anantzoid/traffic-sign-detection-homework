@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,7 +24,11 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
+parser.add_argument('--outf', type=str, default='/scratch/ag4508/models/baseline/')
 args = parser.parse_args()
+
+if not os.path.exists(args.outf):
+    os.makedirs(args.outf)
 
 torch.manual_seed(args.seed)
 
@@ -43,9 +48,13 @@ val_loader = torch.utils.data.DataLoader(
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import Net
-model = Net()
+#model = Net()
+from model_preactnet import PreActResNet18
+model = PreActResNet18() 
+print(model)
 
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
 def train(epoch):
     model.train()
@@ -81,6 +90,6 @@ def validation():
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     validation()
-    model_file = 'model_' + str(epoch) + '.pth'
+    model_file = os.path.join(args.outf, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
