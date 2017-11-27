@@ -30,6 +30,10 @@ parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--outf', type=str, default='/scratch/ag4508/models/baseline/')
 parser.add_argument('--nw', type=int, default=2)
+parser.add_argument('--log_interval', type=int, default=100)
+parser.add_argument('--lr_decay_step', type=int, default=10)
+parser.add_argument('--lr_decay_rate', type=float, default=0.9)
+
 args = parser.parse_args()
 
 if not os.path.exists(args.outf):
@@ -39,7 +43,11 @@ use_cuda = torch.cuda.is_available()
 if use_cuda:
     torch.cuda.set_device(2)
 
-path_split = [args.outf.split("/")[:-1], args.outf.split("/")[-1]]
+if "/" in args.outf:
+    path_split = [args.outf.split("/")[:-1], args.outf.split("/")[-1]]
+else:
+    path_split = [".", args.outf]
+print(path_split[0], 'logs', path_split[1])
 log_path = os.path.join(path_split[0], 'logs', path_split[1])
 if not os.path.exists(log_path):
     os.makedirs(log_path)
@@ -71,11 +79,26 @@ if use_cuda:
     model.cuda()
     #crit.cuda()
 
+def early_stop(val_acc_history, t=10, required_progress=0.01):
+    val_acc_history = [_[1] for _ in val_acc_history] 
+    if len(val_acc_history) < t:
+        return False
+    stop = True
+    for i in list(reversed(range(len(val_acc_history)-t, len(val_acc_history))))[:-1]:
+        if val_acc_history[i] - val_acc_history[i-1] > required_progress:
+            stop = False            
+    return stop
 
 train = {'step': [], 'loss': []}
 test = {'step': [], 'loss': [], 'acc': []}
+step = 0
+lr = args.lr
+
 def train(epoch):
     model.train()
+    validation_acc_history = []
+    stop_training = False
+
     for batch_idx, (data, target) in enumerate(train_loader):
         if data.size(0) != args.batch_size:
             continue
@@ -87,15 +110,28 @@ def train(epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
+        if step % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.data[0]))
-    train['step'].append(epoch)
+            val_acc = validation(step)
+            validation_acc_history.append([step, val_acc])
+
+            stop_training = early_stop(validation_acc_history)
+            if stop_training:
+                print("earily stop triggered")
+                lr *= args.lr_decay_rate
+                print("LR change: ", lr)
+                optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+                break            
+
+        step += 1
+    train['step'].append(step)
     train['loss'].append(loss.data[0])
     tensorboard_logger.log_value('train_loss', loss.data[0])
 
-def validation(epoch):
+
+def validation(step):
     model.eval()
     validation_loss = 0
     correct = 0
@@ -112,21 +148,24 @@ def validation(epoch):
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     validation_loss /= len(val_loader.dataset)
+    val_acc = 100. * correct / len(val_loader.dataset)
     print('\nValidation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         validation_loss, correct, len(val_loader.dataset),
-        100. * correct / len(val_loader.dataset)))
-    train['step'].append(epoch)
+        val_acc))
+    train['step'].append(step)
     train['loss'].append(validation_loss)
     train['acc'].append(100. * correct / len(val_loader.dataset))
     tensorboard_logger.log_value('val_loss', validation_loss)
-    tensorboard_logger.log_value('val_acc', 100. * correct / len(val_loader.dataset))
+    tensorboard_logger.log_value('val_acc', val_acc)
+    return val_acc
 
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    validation(epoch)
-    if epoch % rgs.lr_decay_step == 0:
+    #validation(epoch)
+    if epoch % args.lr_decay_step == 0:
         lr *= args.lr_decay_rate
+        print("LR change: ", lr)
         optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
          
     '''
