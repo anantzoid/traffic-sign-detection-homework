@@ -72,6 +72,7 @@ val_acc_history = []
 
 def train(epoch):
     model.train()
+    e_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = Variable(data), Variable(target)
 
@@ -84,11 +85,12 @@ def train(epoch):
         
         loss.backward()
         optimizer.step()
+        e_loss +=loss.data[0]
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.data[0]))
-    return loss.data[0]
+    return e_loss/len(train_loader.dataset)
 
 def validation():
     model.eval()
