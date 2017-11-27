@@ -74,13 +74,15 @@ def train(epoch):
     model.train()
     e_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
+        if data.size(0) != batch_size:
+            continue
         data, target = Variable(data), Variable(target)
 
         if use_cuda:
             data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
         output = model(data)
-        output = output.view(args.batch_size, -1)
+        
         loss = F.nll_loss(output, target)
         
         loss.backward()
@@ -97,6 +99,9 @@ def validation():
     validation_loss = 0
     correct = 0
     for data, target in val_loader:
+        if data.size(0) != batch_size:
+            continue
+        
         data, target = Variable(data, volatile=True), Variable(target)
         if use_cuda:
             data, target = data.cuda(), target.cuda()
