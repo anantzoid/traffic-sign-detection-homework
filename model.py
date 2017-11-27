@@ -23,11 +23,11 @@ class Net(nn.Module):
         return F.log_softmax(x)
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_ch, k_size, out_ch, st, pad, pool=None, pool_k=None, pool_st=None):
+    def __init__(self, in_ch, k_size, out_ch, st, pad, pool=None, pool_k=None, pool_st=None, bias=True):
         super(ConvBlock, self).__init__()
         self.pool = pool
 
-        self.c1 = nn.Conv2d(in_ch, out_ch, kernel_size=k_size, stride=st, padding=pad)
+        self.c1 = nn.Conv2d(in_ch, out_ch, kernel_size=k_size, stride=st, padding=pad, bias=bias)
         self.b1 = nn.BatchNorm2d(out_ch, affine=True)
         self.a1 = nn.ELU(True)
         if self.pool:
@@ -51,10 +51,10 @@ class Net1(nn.Module):
         self.l5 = ConvBlock(64, 3, 64, 1, 1, 1, 2, 2)        
         self.l6 = ConvBlock(64, 4, 512, 1, 0)
         self.l7 = nn.Dropout2d(0.5)
-        self.l8 = ConvBlock(512, 1, 512, 1, 0)
+        self.l8 = ConvBlock(512, 1, 512, 1, 0, bias=False)
         self.l9 = nn.Dropout2d(0.5)
         # Global avg pooling to be used instead of maxpool
-        self.l10 = nn.Conv2d(512, nclasses, 1, 1, 0)
+        self.l10 = nn.Conv2d(512, nclasses, 1, 1, 0, bias=False)
         self.l11 = nn.AvgPool2d(1, 1)
         self.l12 = nn.BatchNorm2d(nclasses, affine=True)
         self.apply(weights_init_uniform) 
