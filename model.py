@@ -32,7 +32,7 @@ class ConvBlock(nn.Module):
         self.a1 = nn.ELU(True)
         if self.pool:
             self.p1 = nn.MaxPool2d(pool_k, pool_st)
-        
+        self.apply(weights_init) 
     def forward(self, x):
         x = self.c1(x)
         x = self.b1(x)
@@ -57,6 +57,7 @@ class Net1(nn.Module):
         self.l10 = nn.Conv2d(512, nclasses, 1, 1, 0)
         self.l11 = nn.AvgPool2d(1, 1)
         self.l12 = nn.BatchNorm2d(nclasses, affine=True)
+        self.apply(weights_init_uniform) 
         
 
     def forward(self, x):
@@ -84,15 +85,26 @@ class Net1(nn.Module):
         #print(x.size())
         x = self.l12(x)
         #print(x.size())        
-        return x
+        x = x.view(-1, nclasses)
+        return F.log_softmax(x)
 
 
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
         m.weight.data.normal_(0.0, 0.01)
-    if classname.find('Conv') != -1:
+    if classname.find('Conv2d') != -1:
         m.weight.data.normal_(0.0, 0.02)
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
+def weights_init_uniform(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        m.weight.data.uniform_(-0.01, 0.01)
+    if classname.find('Conv2d') != -1:
+        m.weight.data.uniform_(-0.01, 0.01)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.uniform_(-0.01, 0.01)
         m.bias.data.fill_(0)

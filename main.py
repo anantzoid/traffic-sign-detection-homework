@@ -25,6 +25,7 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--outf', type=str, default='/scratch/ag4508/models/baseline/')
+parser.add_argument('--nw', type=int, default=2)
 args = parser.parse_args()
 
 if not os.path.exists(args.outf):
@@ -32,7 +33,7 @@ if not os.path.exists(args.outf):
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
 if use_cuda:
-    torch.cuda.set_device(1)
+    torch.cuda.set_device(2)
 
 
 ### Data Initialization and Loading
@@ -42,37 +43,36 @@ initialize_data(args.data) # extracts the zip files, makes a validation set
 train_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/train_images',
                          transform=data_transforms),
-    batch_size=args.batch_size, shuffle=True, num_workers=1)
+    batch_size=args.batch_size, shuffle=True, num_workers=args.nw)
 val_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/val_images',
                          transform=data_transforms),
-    batch_size=args.batch_size, shuffle=False, num_workers=1)
+    batch_size=args.batch_size, shuffle=False, num_workers=args.nw)
 
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
 #model = Net()
 model = Net1()
-model.apple(weights_init)
-
-crit = nn.CrossEntropyLoss()
+model.apply(weights_init_uniform)
+#crit = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 if use_cuda:
     model.cuda()
-    crit.cuda()
+    #crit.cuda()
 
 def train(epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
+        if data.size(0) != args.batch_size:
+            continue
         data, target = Variable(data), Variable(target)
         if use_cuda:
             data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
         output = model(data)
-        output = output.view(args.batch_size, -1)
-        #loss = F.nll_loss(output, target)
-        loss = crit(output, target)
+        loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -85,6 +85,8 @@ def validation():
     validation_loss = 0
     correct = 0
     for data, target in val_loader:
+        if data.size(0) != args.batch_size:
+            continue
         data, target = Variable(data, volatile=True), Variable(target)
         if use_cuda:
             data, target = data.cuda(), target.cuda()
@@ -103,6 +105,17 @@ def validation():
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     validation()
+    '''
+    if epoch%30==0:
+        lr *= 0.9
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+    if epoch == 30:
+        lr = 1e-3
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+    elif epoch == 70:
+        lr = 1e-4
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+    '''
     model_file = os.path.join(args.outf, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
