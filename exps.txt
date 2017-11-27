@@ -1,0 +1,11 @@
+baseline: ee653688026edaeab00fe57641d20a7461717f2e
+const_lr_uniform_init: 
+    - lr decay *0.9 every 30 epochs
+    - uniform weights
+<TBD>:
+    - tf & pyplot logging
+    - param of lrdecayrate and step
+    - early stopping
+
+<TBD>:
+    - augmented data
