@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
-import tensorboard_logger
+#import tensorboard_logger
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch GTSRB example')
@@ -28,19 +28,20 @@ parser.add_argument('--log-interval', type=int, default=10, metavar='N',
 parser.add_argument('--outf', type=str, default='.')
 parser.add_argument('--lr_decay_rate', type=float, default=0.9)
 parser.add_argument('--nw', type=int, default=2)
+parser.add_argument('--gpu_id', type=int, default=-1)
 args = parser.parse_args()
 
 if not os.path.exists(args.outf):
     os.makedirs(args.outf)
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
-if use_cuda:
-    torch.cuda.set_device(1)
+#if use_cuda and args.gpu_id > -1:
+#    torch.cuda.set_device(args.gpu_id)
 
 log_path = 'logs/'+args.outf.split('/')[-1]
 if not os.path.exists(log_path):
     os.makedirs(log_path)
-tensorboard_logger.configure(log_path)
+#tensorboard_logger.configure(log_path)
 
 ### Data Initialization and Loading
 from data import initialize_data, data_transforms, val_data_transforms # data.py in the same folder
@@ -71,6 +72,7 @@ if use_cuda:
 val_acc_history = []
 
 def train(epoch):
+    global optimizer
     model.train()
     e_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -80,7 +82,7 @@ def train(epoch):
 
         if use_cuda:
             data, target = data.cuda(), target.cuda()
-        optimizer.zero_grad()
+        model.zero_grad()
         output = model(data)
         
         loss = F.nll_loss(output, target)
@@ -135,16 +137,16 @@ for epoch in range(1, args.epochs + 1):
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
-    args.lr = args.lr*(0.1**int(epoch/10)), 
+    args.lr = args.lr*(0.1**int(epoch/10))
     print("LR changed to: ", args.lr)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     if early_stop(val_acc_history):
         args.lr *= args.lr_decay_rate
-        print("LR changed to: ", args.lr)
+        print("Early Stop:=>LR changed to: ", args.lr)
         #optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
         optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    tensorboard_logger.log_value('train_loss', train_loss, epoch)
-    tensorboard_logger.log_value('val_loss', val_loss, epoch)
-    tensorboard_logger.log_value('val_acc', val_acc, epoch)
+    #tensorboard_logger.log_value('train_loss', train_loss, epoch)
+    #tensorboard_logger.log_value('val_loss', val_loss, epoch)
+    #tensorboard_logger.log_value('val_acc', val_acc, epoch)
