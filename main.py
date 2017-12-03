@@ -43,7 +43,7 @@ if not os.path.exists(log_path):
 tensorboard_logger.configure(log_path)
 
 ### Data Initialization and Loading
-from data import initialize_data, data_transforms # data.py in the same folder
+from data import initialize_data, data_transforms, val_data_transforms # data.py in the same folder
 initialize_data(args.data) # extracts the zip files, makes a validation set
 
 train_loader = torch.utils.data.DataLoader(
@@ -52,7 +52,7 @@ train_loader = torch.utils.data.DataLoader(
     batch_size=args.batch_size, shuffle=True, num_workers=args.nw)
 val_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/val_images',
-                         transform=data_transforms),
+                         transform=val_data_transforms),
     batch_size=args.batch_size, shuffle=False, num_workers=args.nw)
 
 ### Neural Network and Optimizer
@@ -63,8 +63,8 @@ model = Net1()
 model.apply(weights_init)
 
 
-optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
-#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+#optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 if use_cuda:
     model.cuda()    
 
@@ -74,7 +74,7 @@ def train(epoch):
     model.train()
     e_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
-        if data.size(0) != batch_size:
+        if data.size(0) != args.batch_size:
             continue
         data, target = Variable(data), Variable(target)
 
@@ -99,9 +99,9 @@ def validation():
     validation_loss = 0
     correct = 0
     for data, target in val_loader:
-        if data.size(0) != batch_size:
+        if data.size(0) != args.batch_size:
             continue
-        
+
         data, target = Variable(data, volatile=True), Variable(target)
         if use_cuda:
             data, target = data.cuda(), target.cuda()
@@ -135,10 +135,15 @@ for epoch in range(1, args.epochs + 1):
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
+    args.lr = args.lr*(0.1**int(epoch/10)), 
+    print("LR changed to: ", args.lr)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+
     if early_stop(val_acc_history):
         args.lr *= args.lr_decay_rate
         print("LR changed to: ", args.lr)
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+        #optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     tensorboard_logger.log_value('train_loss', train_loss, epoch)
     tensorboard_logger.log_value('val_loss', val_loss, epoch)
