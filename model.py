@@ -77,6 +77,46 @@ class Net1(nn.Module):
         return F.log_softmax(x)
 
 
+class Net2(nn.Module):
+    def __init__(self):
+        super(Net2, self).__init__()
+        layers = []        
+        layers.append(nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=0))
+        layers.append(nn.ELU())
+
+        layers.append(nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0))        
+        layers.append(nn.BatchNorm2d(32, affine=True))
+        layers.append(nn.ELU())
+
+        layers.append(nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0))        
+        layers.append(nn.BatchNorm2d(32, affine=True))
+        layers.append(nn.ELU())
+        layers.append(nn.MaxPool2d(2))
+        layers.append(nn.Dropout(0.2))
+
+        layers.append(nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0))        
+        layers.append(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0))        
+        layers.append(nn.BatchNorm2d(64, affine=True))
+        layers.append(nn.ELU())
+        layers.append(nn.MaxPool2d(2))
+        layers.append(nn.Dropout(0.2))
+        self.convlayers = nn.Sequential(*layers)
+
+        layers = []
+        layers.append(nn.Linear(4096, 512))
+        layers.append(nn.ELU())
+        layers.append(nn.Dropout(0.5))
+        layers.append(nn.Linear(512, nclasses))
+        self.flatlayers = nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.convlayers(x)
+        x = x.view(x.size(0), -1)        
+        x =self.flatlayers(x)
+        return F.log_softmax(x)
+
+
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:

@@ -8,6 +8,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 #import tensorboard_logger
+import numpy as np
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch GTSRB example')
@@ -26,25 +27,28 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--outf', type=str, default='.')
-parser.add_argument('--lr_decay_rate', type=float, default=0.9)
 parser.add_argument('--nw', type=int, default=2)
-parser.add_argument('--gpu_id', type=int, default=-1)
+parser.add_argument('--gpu_id', type=int, default=0)
+parser.add_argument('--ngpu', type=int, default=1)
+
 args = parser.parse_args()
+print(args)
 
 if not os.path.exists(args.outf):
     os.makedirs(args.outf)
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
-#if use_cuda and args.gpu_id > -1:
-#    torch.cuda.set_device(args.gpu_id)
+if use_cuda and args.gpu_id > -1:
+   torch.cuda.set_device(args.gpu_id)
 
 log_path = 'logs/'+args.outf.split('/')[-1]
 if not os.path.exists(log_path):
     os.makedirs(log_path)
-#tensorboard_logger.configure(log_path)
+tensorboard_logger.configure(log_path)
+print("Logging in %s"%log_path)
 
 ### Data Initialization and Loading
-from data import initialize_data, data_transforms, val_data_transforms # data.py in the same folder
+from data import initialize_data, data_transforms # data.py in the same folder
 initialize_data(args.data) # extracts the zip files, makes a validation set
 
 train_loader = torch.utils.data.DataLoader(
@@ -53,38 +57,60 @@ train_loader = torch.utils.data.DataLoader(
     batch_size=args.batch_size, shuffle=True, num_workers=args.nw)
 val_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/val_images',
-                         transform=val_data_transforms),
+                         transform=data_transforms),
     batch_size=args.batch_size, shuffle=False, num_workers=args.nw)
 
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
-#model = Net()
-model = Net1()
-model.apply(weights_init)
+model = Net2()
 
-
-#optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
 if use_cuda:
-    model.cuda()    
+    if args.ngpu > 1:
+        model = nn.DataParallel(model, device_ids=range(args.gpu_id, args.gpu_id+args.ngpu))
+    else:
+        model.cuda()    
 
-val_acc_history = []
+from keras.preprocessing.image import ImageDataGenerator
+datagen = ImageDataGenerator(featurewise_center=False,
+                    featurewise_std_normalization=False,
+                    width_shift_range=0.1,
+                    height_shift_range=0.1,
+                    zoom_range=0.2,
+                    shear_range=0.1,
+                    rotation_range=10.,)
 
+X, y = None, None
+for _, (i, j) in enumerate(train_loader):    
+    i, j = i.numpy(), j.numpy()
+    if X is None:
+        X, y = i, j
+    else:        
+        X = np.concatenate((X, i))
+        y = np.concatenate((y, j))
+    # if _ == 100:
+    #     break
+
+num_batches = X.shape[0]//args.batch_size
 def train(epoch):
     global optimizer
     model.train()
     e_loss = 0
-    for batch_idx, (data, target) in enumerate(train_loader):
-        if data.size(0) != args.batch_size:
-            continue
-        data, target = Variable(data), Variable(target)
+    batch_idx = 0
+    #for batch_idx, (data, target) in enumerate(train_loader):
+    for data, target in datagen.flow(X, y, batch_size=args.batch_size):        
+        if batch_idx == num_batches:
+            break
+        batch_idx += 1
+        # if data.size(0) != args.batch_size:
+        #     continue
+        data, target = Variable(torch.from_numpy(data).float()), Variable(torch.from_numpy(target).long())
 
         if use_cuda:
             data, target = data.cuda(), target.cuda()
         model.zero_grad()
         output = model(data)
-        
         loss = F.nll_loss(output, target)
         
         loss.backward()
@@ -120,33 +146,19 @@ def validation():
         val_acc))
     return (validation_loss, val_acc)
 
-def early_stop(val_acc_history, t=10, required_progress=0.1):        
-    if len(val_acc_history) < t:
-        return False
-    stop = True
-    for i in list(reversed(range(len(val_acc_history)-t, len(val_acc_history))))[:-1]:
-        if val_acc_history[i] - val_acc_history[i-1] > required_progress:
-            stop = False            
-    return stop
 
 for epoch in range(1, args.epochs + 1):
     train_loss = train(epoch)
     val_loss, val_acc = validation()
-    val_acc_history.append(val_acc)    
     model_file = os.path.join(args.outf, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
     args.lr = args.lr*(0.1**int(epoch/10))
     print("LR changed to: ", args.lr)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
 
-    if early_stop(val_acc_history):
-        args.lr *= args.lr_decay_rate
-        print("Early Stop:=>LR changed to: ", args.lr)
-        #optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-    #tensorboard_logger.log_value('train_loss', train_loss, epoch)
-    #tensorboard_logger.log_value('val_loss', val_loss, epoch)
-    #tensorboard_logger.log_value('val_acc', val_acc, epoch)
+    tensorboard_logger.log_value('train_loss', train_loss, epoch)
+    tensorboard_logger.log_value('val_loss', val_loss, epoch)
+    tensorboard_logger.log_value('val_acc', val_acc, epoch)

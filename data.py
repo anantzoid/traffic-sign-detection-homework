@@ -1,9 +1,8 @@
 from __future__ import print_function
 import zipfile
 import os
-
+from skimage import io, color, exposure, transform
 import torchvision.transforms as transforms
-from keras.preprocessing.image import *
 import numpy as np
 # once the images are loaded, how do we pre-process them before being passed into the network
 # by default, we resize the images to 32 x 32 in size
@@ -16,22 +15,33 @@ transform_random_rotation = lambda im: random_rotation(im, 15)
 transform_random_shear = lambda im: random_shear(im, 6.0)
 transform_random_zoom = lambda im: random_zoom(im, (0.5, 1.5))
 
+def preprocess_img(img):
+    # Histogram normalization in y    
+    img = np.array(img)    
+    hsv = color.rgb2hsv(img)
+    hsv[:,:,2] = exposure.equalize_hist(hsv[:,:,2])
+    img = color.hsv2rgb(hsv)
 
+    # central scrop
+    min_side = min(img.shape[:-1])
+    centre = img.shape[0]//2, img.shape[1]//2
+    img = img[centre[0]-min_side//2:centre[0]+min_side//2,
+              centre[1]-min_side//2:centre[1]+min_side//2,
+              :]
+    img = transform.resize(img, (IMG_SIZE, IMG_SIZE))              
+    img = np.rollaxis(img,-1)    
+    return img
+
+
+IMG_SIZE = 48
 data_transforms = transforms.Compose([
-    transforms.Scale((32, 32)),
-    transforms.Lambda(to_numpy),
-    transforms.Lambda(transform_random_shift),
-    transforms.Lambda(transform_random_rotation),
-    transforms.Lambda(transform_random_zoom),    
-    transforms.ToTensor(),
-    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
+    transforms.Lambda(preprocess_img)
+        
 ])
-val_data_transforms = transforms.Compose([
-    transforms.Scale((32, 32)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
-    ])
-#transforms.RandomRotation(15),
+#transforms.Scale((IMG_SIZE, IMG_SIZE))
+# transforms.ToTensor()
+#    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
+
 
 def initialize_data(folder):
     train_zip = folder + '/train_images.zip'
