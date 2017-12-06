@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
-#import tensorboard_logger
+import tensorboard_logger
 import numpy as np
 
 # Training settings
@@ -30,9 +30,7 @@ parser.add_argument('--outf', type=str, default='.')
 parser.add_argument('--nw', type=int, default=2)
 parser.add_argument('--gpu_id', type=int, default=0)
 parser.add_argument('--ngpu', type=int, default=1)
-
 args = parser.parse_args()
-print(args)
 
 if not os.path.exists(args.outf):
     os.makedirs(args.outf)
@@ -45,72 +43,52 @@ log_path = 'logs/'+args.outf.split('/')[-1]
 if not os.path.exists(log_path):
     os.makedirs(log_path)
 tensorboard_logger.configure(log_path)
-print("Logging in %s"%log_path)
 
 ### Data Initialization and Loading
-from data import initialize_data, data_transforms # data.py in the same folder
+from data import initialize_data, data_transforms, val_data_transforms # data.py in the same folder
 initialize_data(args.data) # extracts the zip files, makes a validation set
 
 train_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/train_images',
-                         transform=data_transforms),
+                         transform=val_data_transforms),
     batch_size=args.batch_size, shuffle=True, num_workers=args.nw)
 val_loader = torch.utils.data.DataLoader(
     datasets.ImageFolder(args.data + '/val_images',
-                         transform=data_transforms),
+                         transform=val_data_transforms),
     batch_size=args.batch_size, shuffle=False, num_workers=args.nw)
+
 
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
+#model = Net()
 model = Net2()
+#model.apply(weights_init)
 
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
+
+#optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 if use_cuda:
+    model.cuda()    
     if args.ngpu > 1:
-        model = nn.DataParallel(model, device_ids=range(args.gpu_id, args.gpu_id+args.ngpu))
-    else:
-        model.cuda()    
+        model = nn.DataParallel(model, device_ids=range(args.gpu_id, ngpu))
 
-from keras.preprocessing.image import ImageDataGenerator
-datagen = ImageDataGenerator(featurewise_center=False,
-                    featurewise_std_normalization=False,
-                    width_shift_range=0.1,
-                    height_shift_range=0.1,
-                    zoom_range=0.2,
-                    shear_range=0.1,
-                    rotation_range=10.,)
-
-X, y = None, None
-for _, (i, j) in enumerate(train_loader):    
-    i, j = i.numpy(), j.numpy()
-    if X is None:
-        X, y = i, j
-    else:        
-        X = np.concatenate((X, i))
-        y = np.concatenate((y, j))
-    # if _ == 100:
-    #     break
-
-num_batches = X.shape[0]//args.batch_size
 def train(epoch):
     global optimizer
     model.train()
     e_loss = 0
-    batch_idx = 0
-    #for batch_idx, (data, target) in enumerate(train_loader):
-    for data, target in datagen.flow(X, y, batch_size=args.batch_size):        
-        if batch_idx == num_batches:
-            break
-        batch_idx += 1
-        # if data.size(0) != args.batch_size:
-        #     continue
-        data, target = Variable(torch.from_numpy(data).float()), Variable(torch.from_numpy(target).long())
+    for batch_idx, (data, target) in enumerate(train_loader):
+        if data.size(0) != args.batch_size:
+            continue
+        # if batch_idx == 10:
+        #     break
+        data, target = Variable(data), Variable(target)
 
         if use_cuda:
             data, target = data.cuda(), target.cuda()
         model.zero_grad()
         output = model(data)
+        
         loss = F.nll_loss(output, target)
         
         loss.backward()
@@ -126,7 +104,7 @@ def validation():
     model.eval()
     validation_loss = 0
     correct = 0
-    for data, target in val_loader:
+    for batch_idx, (data, target) in enumerate(val_train_loader):
         if data.size(0) != args.batch_size:
             continue
 
@@ -150,14 +128,14 @@ def validation():
 for epoch in range(1, args.epochs + 1):
     train_loss = train(epoch)
     val_loss, val_acc = validation()
+    
     model_file = os.path.join(args.outf, 'model_' + str(epoch) + '.pth')
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
     args.lr = args.lr*(0.1**int(epoch/10))
     print("LR changed to: ", args.lr)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
-
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
     tensorboard_logger.log_value('train_loss', train_loss, epoch)
     tensorboard_logger.log_value('val_loss', val_loss, epoch)

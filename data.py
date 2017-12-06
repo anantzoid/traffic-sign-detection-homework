@@ -3,6 +3,7 @@ import zipfile
 import os
 from skimage import io, color, exposure, transform
 import torchvision.transforms as transforms
+from keras.preprocessing.image import *
 import numpy as np
 # once the images are loaded, how do we pre-process them before being passed into the network
 # by default, we resize the images to 32 x 32 in size
@@ -10,14 +11,16 @@ import numpy as np
 # the training set
 
 to_numpy = lambda im: np.array(im)
-transform_random_shift = lambda im: random_shift(im, 5.0/im.shape[0], 5.0/im.shape[1])
-transform_random_rotation = lambda im: random_rotation(im, 15)
-transform_random_shear = lambda im: random_shear(im, 6.0)
-transform_random_zoom = lambda im: random_zoom(im, (0.5, 1.5))
+transform_random_shift = lambda im: random_shift(im, 0.1, 0.1)
+transform_random_rotation = lambda im: random_rotation(im, 10.0)
+transform_random_shear = lambda im: random_shear(im, 0.1)
+transform_random_zoom = lambda im: random_zoom(im, 0.2)
+IMG_SIZE = 48
 
 def preprocess_img(img):
     # Histogram normalization in y    
     img = np.array(img)    
+    #print(img.shape)
     hsv = color.rgb2hsv(img)
     hsv[:,:,2] = exposure.equalize_hist(hsv[:,:,2])
     img = color.hsv2rgb(hsv)
@@ -29,19 +32,26 @@ def preprocess_img(img):
               centre[1]-min_side//2:centre[1]+min_side//2,
               :]
     img = transform.resize(img, (IMG_SIZE, IMG_SIZE))              
-    img = np.rollaxis(img,-1)    
+    #img = np.rollaxis(img,-1) 
+    #print(img.shape)
+    
     return img
 
 
-IMG_SIZE = 48
-data_transforms = transforms.Compose([
-    transforms.Lambda(preprocess_img)
-        
+data_transforms = transforms.Compose([    
+    transforms.Lambda(preprocess_img),
+    transforms.Lambda(transform_random_shift),
+    transforms.Lambda(transform_random_rotation),
+    transforms.Lambda(transform_random_zoom),
+    transforms.Lambda(transform_random_shear),    
+    transforms.ToTensor()
+    
 ])
-#transforms.Scale((IMG_SIZE, IMG_SIZE))
-# transforms.ToTensor()
-#    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
-
+#transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
+val_data_transforms = transforms.Compose([
+    transforms.Lambda(preprocess_img),
+    transforms.ToTensor()
+    ])
 
 def initialize_data(folder):
     train_zip = folder + '/train_images.zip'
