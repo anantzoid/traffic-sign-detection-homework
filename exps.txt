@@ -10,6 +10,8 @@ const_lr_uniform_init:
 <TBD>:
     - augmented data
 
+best kaggle score: orignal net (keras) for 30 epochs on train dataonly
+
 e1: default
 e2: Net2 with weight_decay
 	<Above 2 had a bug and lr ended up at 1e-30 after 30 epochs>

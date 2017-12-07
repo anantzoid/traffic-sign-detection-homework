@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torchvision.datasets as datasets
 
 from data import initialize_data # data.py in the same folder
-from model import Net
+from model import *
 
 parser = argparse.ArgumentParser(description='PyTorch GTSRB evaluation script')
 parser.add_argument('--data', type=str, default='data', metavar='D',
@@ -21,13 +21,15 @@ parser.add_argument('--outfile', type=str, default='gtsrb_kaggle.csv', metavar='
                     help="name of the output csv file")
 
 args = parser.parse_args()
+torch.cuda.set_device(0)
 
-state_dict = torch.load(args.model)
 model = Net()
+model.cuda()
+state_dict = torch.load(args.model)
 model.load_state_dict(state_dict)
 model.eval()
 
-from data import data_transforms
+from data import val_data_transforms
 
 test_dir = args.data + '/test_images'
 
@@ -42,9 +44,10 @@ output_file = open(args.outfile, "w")
 output_file.write("Filename,ClassId\n")
 for f in tqdm(os.listdir(test_dir)):
     if 'ppm' in f:
-        data = data_transforms(pil_loader(test_dir + '/' + f))
+        data = val_data_transforms(pil_loader(test_dir + '/' + f))
         data = data.view(1, data.size(0), data.size(1), data.size(2))
         data = Variable(data, volatile=True)
+        data = data.cuda()
         output = model(data)
         pred = output.data.max(1, keepdim=True)[1]
 
