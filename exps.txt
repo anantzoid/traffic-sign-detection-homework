@@ -16,7 +16,7 @@ e2: Net2 with weight_decay
 
 e3: with net1, weight_decay, 50 epochs, img_size 32
 e2_1: original keras net
-e4: adam with e2
+e4: adam with net1
 e4_cont: more epochs
 e5: Net2 w/o batchNorm & Elu
 e5: resnet arch

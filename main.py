@@ -63,11 +63,11 @@ val_loader = torch.utils.data.DataLoader(
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
 #model = Net()
-model = Net1()
-#model.apply(weights_init)
+#model = Net1()
+model = ResNet(BasicBlock, [2,2,2,2], num_classes=43)
+model.apply(weights_init_uniform)
 
-
-optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
 #optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
 if use_cuda:
     model.cuda()    
@@ -136,9 +136,10 @@ for epoch in range(1, args.epochs + 1):
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
-    #lr = args.lr*(0.1**int(epoch/10))
-    #print("LR changed to: ", lr)
+    lr = args.lr*(0.1**int(epoch/10))
+    print("LR changed to: ", lr)
     #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=args.momentum, weight_decay=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
 
     tensorboard_logger.log_value('train_loss', train_loss, epoch)
     tensorboard_logger.log_value('val_loss', val_loss, epoch)
