@@ -64,7 +64,9 @@ val_loader = torch.utils.data.DataLoader(
 from model import *
 #model = Net()
 #model = Net1()
-model = ResNet(BasicBlock, [2,2,2,2], num_classes=43)
+#model = ResNet(BasicBlock, [2,2,2,2], num_classes=43)
+model = Resnet_Custom(43)
+
 model.apply(weights_init_uniform)
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)

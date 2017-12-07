@@ -236,3 +236,63 @@ class ResNet(nn.Module):
         out = self.linear3(out)
         return F.log_softmax(out)
 
+
+class ResBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, stride):
+        super(ResBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_ch)
+        self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_ch)
+        self.relu_act = nn.ReLU()
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_ch != out_ch:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=stride, padding=1, bias=False),
+                nn.BatchNorm2d(out_ch)
+            )
+
+    def forward(self, x):
+        out = self.relu_act(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        out = self.relu_act(out)
+        return out
+
+
+class Resnet_Custom(nn.Module):
+    def __init__(self, num_classes):
+        super(Resnet_Custom, self).__init__()
+        self.in_ch = 64
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.act = nn.ReLU()
+        # Res Layers
+        self.res1 = self.make_res_layer(64, 2, 1)
+        self.res2 = self.make_res_layer(128, 2, 2)
+        self.res3 = self.make_res_layer(256, 2, 2)
+
+        self.pool = nn.AvgPool2d(4, 4)
+        self.do = nn.Dropout(0.5)
+        self.l1 = nn.Linear(2304, 512)
+        self.l2 = nn.Linear(512, num_classes)
+
+    def make_res_layer(self, out_ch, block_size, stride):
+        strides = [stride] + [1]*(block_size-1)
+        layers = []
+        for stride in strides:
+            layers.append(ResBlock(self.in_ch, out_ch, stride))
+            self.in_ch = out_ch
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.act(self.bn1(self.conv1(x)))
+        x = self.res1(x)
+        x = self.res2(x)
+        x = self.res3(x)
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)
+        x = self.do(self.l1(x))
+        x = self.l2(x)
+        return F.log_softmax(x)
