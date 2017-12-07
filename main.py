@@ -30,6 +30,7 @@ parser.add_argument('--outf', type=str, default='.')
 parser.add_argument('--nw', type=int, default=2)
 parser.add_argument('--gpu_id', type=int, default=0)
 parser.add_argument('--ngpu', type=int, default=1)
+parser.add_argument('--load_model', type=str, default='')
 args = parser.parse_args()
 
 if not os.path.exists(args.outf):
@@ -62,17 +63,19 @@ val_loader = torch.utils.data.DataLoader(
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
 #model = Net()
-model = Net2()
+model = Net1()
 #model.apply(weights_init)
 
 
-#optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999))
+#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
 if use_cuda:
     model.cuda()    
     if args.ngpu > 1:
         model = nn.DataParallel(model, device_ids=range(args.gpu_id, args.gpu_id + args.ngpu))
 
+if args.load_model != '':
+    model.load_state_dict(torch.load(args.load_model))
 def train(epoch):
     global optimizer
     model.train()
@@ -133,9 +136,9 @@ for epoch in range(1, args.epochs + 1):
     torch.save(model.state_dict(), model_file)
     print('\nSaved model to ' + model_file + '. You can run `python evaluate.py ' + model_file + '` to generate the Kaggle formatted csv file')
 
-    args.lr = args.lr*(0.1**int(epoch/10))
-    print("LR changed to: ", args.lr)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    #lr = args.lr*(0.1**int(epoch/10))
+    #print("LR changed to: ", lr)
+    #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=args.momentum, weight_decay=1e-6)
 
     tensorboard_logger.log_value('train_loss', train_loss, epoch)
     tensorboard_logger.log_value('val_loss', val_loss, epoch)

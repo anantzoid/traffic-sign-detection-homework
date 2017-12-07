@@ -15,7 +15,7 @@ transform_random_shift = lambda im: random_shift(im, 0.1, 0.1)
 transform_random_rotation = lambda im: random_rotation(im, 10.0)
 transform_random_shear = lambda im: random_shear(im, 0.1)
 transform_random_zoom = lambda im: random_zoom(im, 0.2)
-IMG_SIZE = 48
+IMG_SIZE = 32#48
 
 def preprocess_img(img):
     # Histogram normalization in y    
