@@ -20,7 +20,7 @@ parser.add_argument('--epochs', type=int, default=10, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                     help='learning rate (default: 0.01)')
-parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
+parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                     help='SGD momentum (default: 0.5)')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -71,7 +71,7 @@ optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 if use_cuda:
     model.cuda()    
     if args.ngpu > 1:
-        model = nn.DataParallel(model, device_ids=range(args.gpu_id, ngpu))
+        model = nn.DataParallel(model, device_ids=range(args.gpu_id, args.gpu_id + args.ngpu))
 
 def train(epoch):
     global optimizer
@@ -104,7 +104,7 @@ def validation():
     model.eval()
     validation_loss = 0
     correct = 0
-    for batch_idx, (data, target) in enumerate(val_train_loader):
+    for batch_idx, (data, target) in enumerate(val_loader):
         if data.size(0) != args.batch_size:
             continue
 

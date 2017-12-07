@@ -9,3 +9,7 @@ const_lr_uniform_init:
 
 <TBD>:
     - augmented data
+
+e1: default
+e2: Net2 with weight_decay
+
