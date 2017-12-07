@@ -25,6 +25,7 @@ torch.cuda.set_device(0)
 
 model = Net()
 model.cuda()
+model = nn.DataParallel(model, device_ids=range(0, 1))
 state_dict = torch.load(args.model)
 model.load_state_dict(state_dict)
 model.eval()

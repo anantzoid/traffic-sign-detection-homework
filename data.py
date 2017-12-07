@@ -40,17 +40,18 @@ def preprocess_img(img):
 
 data_transforms = transforms.Compose([    
     transforms.Lambda(preprocess_img),
-    transforms.Lambda(transform_random_shift),
-    transforms.Lambda(transform_random_rotation),
+    transforms.Lambda(transform_random_shift),    
     transforms.Lambda(transform_random_zoom),
     transforms.Lambda(transform_random_shear),    
-    transforms.ToTensor()
-    
+    transforms.Lambda(transform_random_rotation),
+    transforms.ToTensor(),
+    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
 ])
 #transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
 val_data_transforms = transforms.Compose([
     transforms.Lambda(preprocess_img),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize((0.3337, 0.3064, 0.3171), ( 0.2672, 0.2564, 0.2629))
     ])
 
 def initialize_data(folder):

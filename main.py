@@ -62,15 +62,13 @@ val_loader = torch.utils.data.DataLoader(
 ### Neural Network and Optimizer
 # We define neural net in model.py so that it can be reused by the evaluate.py script
 from model import *
-#model = Net()
-#model = Net1()
-#model = ResNet(BasicBlock, [2,2,2,2], num_classes=43)
-model = Resnet_Custom(43)
+model = ResNet(BasicBlock, [2,2,2,2], num_classes=43)
+#model = Resnet_Custom(43)
 
 model.apply(weights_init_uniform)
 
-optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
-#optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
+# optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
+optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-6)
 if use_cuda:
     model.cuda()    
     if args.ngpu > 1:
@@ -78,6 +76,7 @@ if use_cuda:
 
 if args.load_model != '':
     model.load_state_dict(torch.load(args.load_model))
+    
 def train(epoch):
     global optimizer
     model.train()
@@ -140,8 +139,8 @@ for epoch in range(1, args.epochs + 1):
 
     lr = args.lr*(0.1**int(epoch/10))
     print("LR changed to: ", lr)
-    #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=args.momentum, weight_decay=1e-6)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=args.momentum, weight_decay=1e-6)
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.5, 0.999), weight_decay=1e-6)
 
     tensorboard_logger.log_value('train_loss', train_loss, epoch)
     tensorboard_logger.log_value('val_loss', val_loss, epoch)
